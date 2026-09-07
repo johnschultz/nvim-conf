@@ -1,3 +1,6 @@
+-- Amazon tooling only exists where the builder toolbox is installed.
+local amazon = vim.fn.isdirectory(vim.fn.expand("~/.toolbox")) == 1
+
 return {
   {
     "neovim/nvim-lspconfig",
@@ -6,51 +9,35 @@ return {
         lua_ls = {
           settings = {
             Lua = {
-              completion = {
-                callSnippet = "Replace",
-              },
-              diagnostics = {
-                disable = { "missing-fields" },
-              },
+              completion = { callSnippet = "Replace" },
+              diagnostics = { disable = { "missing-fields" } },
             },
           },
         },
-        -- Barium LSP for Brazil Config files
-        barium = {},
-      },
-      setup = {
-        barium = function()
-          local lspconfig = require("lspconfig")
-          local configs = require("lspconfig.configs")
-          if not configs.barium then
-            configs.barium = {
-              default_config = {
-                cmd = { "barium" },
-                filetypes = { "brazil-config" },
-                root_dir = function(fname)
-                  return lspconfig.util.find_git_ancestor(fname)
-                end,
-                settings = {},
-              },
-            }
-          end
-        end,
+        -- Barium: LSP for Brazil Config files. Not in lspconfig, so the full config lives here.
+        barium = amazon and {
+          mason = false,
+          cmd = { "barium" },
+          filetypes = { "brazil-config" },
+          root_markers = { ".git" },
+        } or nil,
       },
     },
   },
-  -- NinjaHooks for Brazil Config support
+  -- Filetype detection, syntax, and indent for Brazil Config / packageInfo / version set files
   {
-    url = "schultjo@git.amazon.com:pkg/NinjaHooks",
+    url = "ssh://git.amazon.com/pkg/VimBrazilConfig",
+    name = "VimBrazilConfig",
     branch = "mainline",
+    enabled = amazon,
     lazy = false,
-    config = function(plugin)
-      vim.opt.rtp:prepend(plugin.dir .. "/configuration/vim/amazon/brazil-config")
+    init = function()
+      -- Detect via vim.filetype so the filetype is set before LSP setup runs; the plugin's own
+      -- vimscript ftdetect fires too late for vim.lsp.enable to see the buffer on first open.
       vim.filetype.add({
         filename = {
-          ["Config"] = function()
-            vim.b.brazil_package_Config = 1
-            return "brazil-config"
-          end,
+          Config = "brazil-config",
+          packageInfo = "brazil-config",
         },
       })
     end,
